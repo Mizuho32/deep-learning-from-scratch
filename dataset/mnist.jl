@@ -87,7 +87,7 @@ function init_mnist()
 end
 
 function _change_one_hot_label(X)
-  return X .== (1:10)'
+  return (X.+1) .== (1:10)'
 end
 
 function load_mnist(;normalize=true, flatten=true, one_hot_label=false)
