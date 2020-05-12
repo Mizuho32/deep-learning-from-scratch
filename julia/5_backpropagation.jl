@@ -444,6 +444,18 @@ println("Delta: $(end_time-start_time)")
 
 # %% View
 using PyPlot
+
+# %% rates
+fig, ax1 = subplots();
+ax1.grid()
+ax1.plot(1:length(train_loss_list), train_loss_list, label="loass")
+ax2 = ax1.twinx()
+ax2.plot(range(iter_per_epoch, length=length(train_acc_list), step=iter_per_epoch), train_acc_list, linestyle="-.", color="orange", linewidth=1, label="train")
+ax2.plot(range(iter_per_epoch, length=length(test_acc_list), step=iter_per_epoch), test_acc_list, linestyle="-.", color="red", linewidth=1, label="test")
+#ax2.legend(loc="center right")
+fig.legend(loc="center")
+fig.show()
+
 # %% main
 
 i = 1
