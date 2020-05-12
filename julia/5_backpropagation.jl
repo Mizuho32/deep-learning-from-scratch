@@ -46,14 +46,14 @@ end
 
   export ReluLayer
   mutable struct ReluLayer
-    mask::BitArray
+    mask::Array
   end
-  function ReluLayer(dim, N)
-    return ReluLayer(BitArray(zeros(dim, N)))
+  function ReluLayer()
+    return ReluLayer(BitArray(zeros(0, 0)))
   end
   function forward(self::ReluLayer, x)
     #println("x $(size(x)) mask $(size(self.mask))")
-    self.mask .= (x .<=  0)
+    self.mask = (x .<=  0)
     out = copy(x)
     out[self.mask] .= 0
 
@@ -93,11 +93,11 @@ end
     dW::Array
     db::Array
   end
-  function AffineLayer(W, b, N)
-    return AffineLayer(W, b, zeros(size(W, 2), N), 0 .*W, 0 .*b)
+  function AffineLayer(W, b)
+    return AffineLayer(W, b, zeros(size(W, 2), 0), 0 .*W, 0 .*b)
   end
   function forward(self::AffineLayer, x)
-    self.x .= x
+    self.x = x
 
     return self.W * x .+ self.b
   end
@@ -115,20 +115,19 @@ end
     loss::Number
     y::Array
     t::Array
-    N::Number
   end
-  function SoftmaxWithLossLayer(rowN, N)
-    return SoftmaxWithLossLayer(0, zeros(rowN, N), zeros(rowN, N), N)
+  function SoftmaxWithLossLayer()
+    return SoftmaxWithLossLayer(0, zeros(0, 0), zeros(0, 0))
   end
   function forward(self::SoftmaxWithLossLayer, x, t)
-    self.t .= t
-    self.y .= softmax(x, 1)
+    self.t = t
+    self.y = softmax(x, 1)
     self.loss = cross_entropy_error(self.y, self.t)
 
     return self.loss
   end
   function backward(self::SoftmaxWithLossLayer, dout)
-    dx = (self.y .- self.t) ./ self.N
+    dx = (self.y .- self.t) ./ size(dout, 2)
 
     return dx
   end
@@ -166,7 +165,6 @@ println(dapple_num)
 println(dtax)
 
 # %% 5.4.2 加算レイヤの実装
-using .BP
 
 apple = 100
 apple_num = 2
@@ -201,12 +199,11 @@ println(dtax)
 
 
 # %% 5.5 活性化関数レイヤの実装
-using .BP
-relu_layer = BP.ReluLayer(3, 2)
+relu_layer = BP.ReluLayer()
 
 input = [1 -1 0; -1 1 0.1]';
 BP.forward(relu_layer, input)
-BP.backward(relu_layer, ones(3, 2))
+BP.backward(relu_layer, ones(3, 3))
 
 
 sigmoid_layer = BP.SigmoidLayer(2)
@@ -217,19 +214,19 @@ BP.backward(sigmoid_layer, [1; 1])
 N = 2
 W = [0 0 0; 10 10 10]';
 b = [1 2 3]';
-affine_layer = BP.AffineLayer(W,b, N)
+affine_layer = BP.AffineLayer(W,b)
 
-x = [2 3; 4 5]'
+x = [2 3; 4 5]';
 a = BP.forward(affine_layer, x)
 BP.backward(affine_layer, [1 2 3; 4 5 6]')
 
 
 t = [0 0 1; 0 1 0]';
-affine_layer = BP.SoftmaxWithLossLayer(3, N)
-BP.forward(affine_layer, a, t)
-BP.backward(affine_layer, [1 1 1; 1 1 1]')
-affine_layer.y
-affine_layer.t
+softmax_layer = BP.SoftmaxWithLossLayer()
+BP.forward(softmax_layer, a, t)
+BP.backward(softmax_layer, [1 1 1; 1 1 1]')
+softmax_layer.y
+softmax_layer.t
 
 
 # %% 5.7 逆誤差伝播の実装
@@ -243,16 +240,16 @@ module TLN2 # 2 Layer Net
   grads_b = Dict()
   o = Dict()
 
-  function init(input_size, hidden_size, output_size, N_, w_init_std = 0.01)
+  function init(input_size, hidden_size, output_size, w_init_std = 0.01)
     params["W1"] = w_init_std .* randn(input_size, hidden_size)'
     params["b1"] = zeros(hidden_size)
     params["W2"] = w_init_std .* randn(hidden_size, output_size)'
     params["b2"] = zeros(output_size)
 
-    layers["Affine1"] = BP.AffineLayer(params["W1"], params["b1"], N_)
-    layers["Relu1"]   = BP.ReluLayer(hidden_size, N_)
-    layers["Affine2"] = BP.AffineLayer(params["W2"], params["b2"], N_)
-    o["lastLayer"] = BP.SoftmaxWithLossLayer(output_size, N_)
+    layers["Affine1"] = BP.AffineLayer(params["W1"], params["b1"])
+    layers["Relu1"]   = BP.ReluLayer()
+    layers["Affine2"] = BP.AffineLayer(params["W2"], params["b2"])
+    o["lastLayer"] = BP.SoftmaxWithLossLayer()
     return;
   end
 
@@ -374,22 +371,24 @@ end
 # %% 5.7.3 誤差逆伝播の勾配確認
 include("./dataset/mnist.jl")
 using Statistics
+using Dates
 #%% load data
 (x_train, t_train), (x_test, t_test) = MNIST.load_mnist(one_hot_label=true, normalize=true);
 # %% main
 
 iters_num = 1
-batch_size = 2
+batch_size = 100
 learning_rate = 0.1
-hid = 10
+hid = 50
 
-TLN2.init(784, hid, 10, batch_size)
+TLN2.init(784, hid, 10)
 
 x_batch = x_train[1:batch_size, :]';
 t_batch = t_train[1:batch_size, :]';
 
 TLN2.predict(x_batch)
 TLN2.softmax(TLN2.predict2(x_batch), 1)
+TLN2.loss(x_batch, t_batch)
 
 grad_numerical = TLN2.calc_grad(x_batch, t_batch)
 grad_backprop  = TLN2.gradient(x_batch, t_batch)
@@ -399,6 +398,7 @@ for key in keys(grad_numerical)
   println("$key:$diff")
 end
 # %% 5.7.4 誤差逆伝播法を使った学習
+
 train_loss_list = []
 train_acc_list = []
 test_acc_list = []
@@ -411,13 +411,15 @@ hid = 50
 
 iter_per_epoch = Int(max(train_size/batch_size, 1))
 
-TLN2.init(784, hid, 10, batch_size)
+TLN2.init(784, hid, 10)
+start_time = now()
 
 for i in 1:iters_num
   batch_mask = rand(1:train_size, batch_size);
   x_batch = x_train[batch_mask, :]';
   t_batch = t_train[batch_mask, :]';
 
+  TLN2.softmax(TLN2.predict2(x_batch), 1)
   grad = TLN2.gradient(x_batch, t_batch)
 
   for key in keys(grad)
@@ -429,12 +431,29 @@ for i in 1:iters_num
   push!(train_loss_list, loss_)
 
   if i % iter_per_epoch == 0
-    train_acc = TLN2.accuracy(x_train[1:batch_size, :]', t_train[1:batch_size, :]')
-    test_acc = TLN2.accuracy(x_test[1:batch_size, :]', t_test[1:batch_size, :]')
+    train_acc = TLN2.accuracy(x_train', t_train')
+    test_acc = TLN2.accuracy(x_test', t_test')
     push!(train_acc_list, train_acc)
     push!(test_acc_list, test_acc)
-    println("loss: $loss_")
-    println("train acc: $train_acc")
-    println("test acc: $test_acc")
+    println("iter: $i loss: $loss_ train acc: $train_acc test acc: $test_acc")
   end
 end
+
+end_time = now()
+println("Delta: $(end_time-start_time)")
+
+# %% View
+using PyPlot
+# %% main
+
+i = 1
+x, t = x_test[i:i, :]', argmax(t_test[i, :])-1;
+println(t)
+y = map(c->c[1], argmax(TLN2.predict2(x), dims=1))[1]-1
+img = reshape(x, (28, 28))';
+label = t;
+imshow(img, label=t)
+
+# %% save
+using JLD2, FileIO
+save("./dataset/5_Wb.jld2", "params", TLN2.params, "train_acc_list", train_acc_list, "test_acc_list", test_acc_list, "train_loss_list", train_loss_list)
