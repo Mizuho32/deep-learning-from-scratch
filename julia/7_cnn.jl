@@ -52,6 +52,10 @@ function stridedFilter(F, C, H, W, P, S)
   return OH, OW, filter, preoutput
 end
 
+function conv(imgtensor, filter, preoutput, Cdim, Hdim, Wdim, Sdim)
+  return sum(preoutput .* sum(sum(filter .* imgtensor, dims=(Hdim,Wdim)), dims=Cdim), dims=(Sdim));
+end
+
 # %% run
 OH, OW, filter2, preoutput = stridedFilter(F, C, H, W, P, S);
 size(filter2)
@@ -70,3 +74,39 @@ out[1, 1, 1, :, :, 1]
 out[1, 2, 1, :, :, 1]
 out[2, 1, :, :, 1]
 out[2, 2, :, :, 1]
+
+# %% lena
+using Images, ImageIO
+using PyPlot
+
+lena = load("dataset/lena_gray.png");
+lenaAr = channelview(lena);
+#lenaF = Array{Float32, 2}(lenaAr[1, :, :]);
+size(lenaAr)
+imshow(lenaAr, cmap="gray")
+
+# %% conv lena
+H, W = size(lenaAr)
+FN = 2
+C = 1
+FH = 3
+FW = 3
+N = 1
+S = 1
+P = 0
+
+F1,F2 = [0 0 0; 0 1 0; 0 0 0],[0 0; 0 0]'
+F = zeros((FN, C, FH, FW));
+F[1, 1,:,:] = F1
+#F[1, 2,:,:] = F2
+#F[2, 1,:,:] = F1 .* 0.5
+#F[2, 2,:,:] = F2
+
+imgtensor = zeros(N,1,C,H,W,1)
+size(imgtensor)
+for n in 1:N
+  imgtensor[n, 1, :, :, :, 1] = lenaAr
+end
+
+_, _, filterL, preoutputL = stridedFilter(F, C, H, W, P, S);
+outtensor = conv(imgtensor, filterL, preoutputL, Cdim, Hdim, Wdim, Sdim)
