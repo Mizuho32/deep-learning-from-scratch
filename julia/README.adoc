@@ -43,3 +43,25 @@ BatchNormalization::
 - Dropout
 ハイパパラメータ::
 - 検証データ。ハイパーパラメータ専用データ
+
+== 7章
+CNNの実装面倒
+
+== 8章
+
+AlexNet::
+ブームの火付け役
+GoogLeNet::
+コンボリューション層を縦でなく横にも
+ResNet::
+スキップ機能
+分散学習::
+Tensorflowの技術論文
+ビット削減::
+16bitでも事足りる。Binarized Neural Networks。
+物体検出::
+R-CNN, Faster R-CNN
+セグメンテーション::
+FCN、全部コンボリューション。
+走路環境認識::
+SegNet
