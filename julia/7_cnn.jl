@@ -10,7 +10,7 @@ S = 1
 P = 0
 
 
-Fdim,Cdim,Hdim,Wdim,sdim = 1,2,3,4,5
+Fdim,Cdim,Hdim,Wdim,Sdim = 1,2,3,4,5
 F1,F2 = [1 1],[0 1]
 F = zeros((2, FH, FW));
 F[1,:,:] = F1
@@ -50,56 +50,15 @@ end
 
 # %% run
 OH, OW, filter2, preoutput = stridedFilter(F, C, H, W, P, S);
-filter2 == filter
-output  == preoutput
-
-F1s1 = [1 1;0 0]
-F1s2 = [0 0;1 1]
-F2s1 = [0 1;0 0]
-F2s2 = [0 0;0 1]
-filter = zeros(FN,C,H,W,2)
-filter[1,1, :,:,1] = F1s1
-filter[1,1, :,:,2] = F1s2
-filter[1,2, :,:,1] = F1s1
-filter[1,2, :,:,2] = F1s2
-
-filter[2,1, :,:,1] = F2s1
-filter[2,1, :,:,2] = F2s2
-filter[2,2, :,:,1] = F2s1
-filter[2,2, :,:,2] = F2s2
-
-# %% Output
-output = zeros(2,1,2,1,2)
-output[1,1,:,:,1] = [1 0]'
-output[1,1,:,:,2] = [0 1]'
-output[2,1,:,:,1] = [1 0]'
-output[2,1,:,:,2] = [0 1]'
 
 # %% Filter * Image
 Fout = filter2[:, :, :, :, :] .* img;
 
-Fout[1, 1, :, :, 1]
-Fout[1, 1, :, :, 2]
-Fout[1, 2, :, :, 1]
-Fout[1, 2, :, :, 2]
-
-Fout[2, 1, :, :, 1]
-Fout[2, 1, :, :, 2]
-Fout[2, 2, :, :, 1]
-Fout[2, 2, :, :, 2]
-size(Fout)
-
 # %% 各ストライドの フィルタ*画像 を合計し、チャンネル足し合わせ
-Fst = sum(sum(Fout, dims=(3,4)), dims=2);
-size(Fst)
-Fst[1, 1, 1, 1, 1]
-Fst[1, 1, 1, 1, 2]
-
-Fst[2, 1, 1, 1, 1]
-Fst[2, 1, 1, 1, 2]
+Fst = sum(sum(Fout, dims=(Hdim,Wdim)), dims=Cdim);
 
 ## %% outputに出力
-out = sum(preoutput .* Fst, dims=(5));
+out = sum(preoutput .* Fst, dims=(Sdim));
 out[1, 1, :, :, 1]
 # 14 22
 out[2, 1, :, :, 1]
