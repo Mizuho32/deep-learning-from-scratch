@@ -6,22 +6,25 @@ function im2col(input_data, filter_h, filter_w, stride=1, pad=0)
 
   img = input_data
   if pad != 0
-    img = zeros(N,C,H+2*pad, W+2*pad)
-    img[:, :, (1+pad):(H+pad), (1+pad):(W+pad)] .= input_data
+    img = zeros(H+2*pad, W+2*pad, C, N)
+    img[(1+pad):(H+pad), (1+pad):(W+pad), :, :] .= input_data
   end
-  col = zeros(out_h*out_w, filter_h, filter_w, C, N)
+  col = zeros(out_h, out_w, filter_h*filter_w, C, N)
 
   col_idx = 1
   for x in 1:filter_w
-    x_shift = 1 + stride*(x-1)
+    x_max = x + stride*(out_w-1)
     for y in 1:filter_h
-      y_shift = 1 + stride*(y-1)
-      col[col_idx, :, :, :, :] = img[y_shift:(y_shift+filter_h-1), x_shift:(x_shift+filter_w-1), :, :]
+      y_max = y + stride*(out_h-1)
+      #println(y:stride:y_max)
+      col[:, :, col_idx, :, :] = img[y:stride:y_max, x:stride:x_max, :, :]
+      #println("idx=$col_idx")
+      #Base.print_array(stdout, img[y_shift:(y_shift+filter_h-1), x_shift:(x_shift+filter_w-1), 1, 1])
       col_idx+=1
     end
   end
 
-  return reshape(permutedims(col,(1,5,2,3,4)), N*out_h*out_w, :)
+  return reshape(permutedims(col,(1,2,5,3,4)), N*out_h*out_w, :)
 end
 
 # %% draft
