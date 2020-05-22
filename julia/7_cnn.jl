@@ -16,10 +16,7 @@ function im2col(input_data, filter_h, filter_w, stride=1, pad=0)
     x_max = x + stride*(out_w-1)
     for y in 1:filter_h
       y_max = y + stride*(out_h-1)
-      #println(y:stride:y_max)
       col[:, :, col_idx, :, :] = img[y:stride:y_max, x:stride:x_max, :, :]
-      #println("idx=$col_idx")
-      #Base.print_array(stdout, img[y_shift:(y_shift+filter_h-1), x_shift:(x_shift+filter_w-1), 1, 1])
       col_idx+=1
     end
   end
@@ -64,16 +61,18 @@ img2[:, :, 2,2] .= -(img.+9)
 col2 = im2col(img2,2,2)
 
 # %% 重み
+N = 2
 H = 3
 W = 3
 C = 1
+FN = 2
 filter_h = 3
 filter_w = 3
 S = 1
 P = 1
 out_h = Int(floor((W+2*P-filter_h)/S)+1)
 out_w = Int(floor((W+2*P-filter_w)/S)+1)
-Wf = zeros(filter_h, filter_w, C, N);
+Wf = zeros(filter_h, filter_w, C, FN);
 Wf[2, 2, 1, 1] = 1;
 #Wf[:, :, 2, 1] = 0.11 .* ones(3,3);
 #Wf[2, 2, 2, 1] = 0.12;
@@ -89,7 +88,7 @@ img3[:, :, 1, 2] = img .+ 9;
 img3
 col3 = im2col(img3,filter_h,filter_w, S,P)
 affine = col3*colWf
-
+img3_ = Wx2im(affine, out_h, out_w, FN, N)
 
 # %%
 using Images, ImageIO
@@ -109,12 +108,24 @@ FW = 3
 N = 1
 S = 1
 P = 1
+out_h = Int(floor((W+2*P-filter_h)/S)+1)
+out_w = Int(floor((W+2*P-filter_w)/S)+1)
 img4 = zeros(H,W, C, N);
-img4[:, :, 1, 1] = lenarAr
-Wf = zeros(filter_h, filter_w, C, N);
-Wf[2, 2, 1, 1] = 1;
-Wf[:, :, 1, 1] = 0.11 .* ones(3,3);
-Wf[2, 2, 1, 1] = 0.12;
-Wf[:, :, 1, 2] = -0.11 .* ones(3,3);
-Wf[2, 2, 1, 2] = 1.88;
-Wf[:, :, 1, 2] = [-1 0 1; -2 0 2; -1 0 1];
+img4[:, :, 1, 1] = lenaAr
+Wf2 = zeros(filter_h, filter_w, C, FN);
+Wf2[2, 2, 1, 1] = 1;
+Wf2[:, :, 1, 2] = 0.11 .* ones(3,3);
+Wf2[2, 2, 1, 2] = 0.12;
+Wf2[:, :, 1, 3] = -0.11 .* ones(3,3);
+Wf2[2, 2, 1, 3] = 1.88;
+Wf2[:, :, 1, 4] = 0.5 .* [-1 0 1; -2 0 2; -1 0 1]';
+Wf2[2, 2, 1, 4] = 1;
+colWf2 = W2col(Wf2);
+col4 = im2col(img4,filter_h,filter_w, S,P)
+affineL = col4*colWf2
+img4_ = Wx2im(affineL, out_h, out_w, FN, N);
+size(img4_)
+imshow(img4_[:, :, 1, 1], cmap="gray")
+imshow(img4_[:, :, 2, 1], cmap="gray")
+imshow(img4_[:, :, 3, 1], cmap="gray")
+imshow(img4_[:, :, 4, 1], cmap="gray")
