@@ -80,19 +80,19 @@ end
 # %% main
 using PyPlot
 include("./dataset/mnist.jl")
-include("julia/lib.jl")
-struct Result
+include("julia/lib.jl"  )
+struct List
   train_loss_list::Array
   train_acc_list::Array
   test_acc_list::Array
-  W::Dict{UInt8, Array}
-  b::Dict{UInt8, Array}
+  #W::Dict{UInt8, Array}
+  #b::Dict{UInt8, Array}
 end
 # %%
 (x_train, t_train), (x_test, t_test) = MNIST.load_mnist(one_hot_label=true, normalize=true);
 train_size = size(x_train, 1)
 # %%
-iters_num = 100
+iters_num = 10000
 batch_size = 100
 learning_rate = 0.1
 input_size = 784
@@ -203,4 +203,4 @@ TLN2.plot(fig, ax1, iter_per_epoch, adaHelist.train_loss_list, adaHelist.train_a
 
 # %% save
 using JLD2, FileIO
-save("./dataset/6_AdaGrad_Wb.jld2", "params", TLN2.params, "train_acc_list", adalist.train_acc_list, "test_acc_list", adalist.test_acc_list, "train_loss_list", adalist.train_loss_list)
+save("./dataset/6_AdaGrad_Wb.jld2", "params", TLN2.params, "train_acc_list", adaHelist.train_acc_list, "test_acc_list", adaHelist.test_acc_list, "train_loss_list", adaHelist.train_loss_list)
