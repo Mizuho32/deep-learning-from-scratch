@@ -2,7 +2,7 @@
 function im2col(input_data, filter_h, filter_w, stride=1, pad=0)
   H, W, C, N = size(input_data)
   out_h = Int(floor((H + 2*pad - filter_h)/stride + 1))
-  out_w = Int((W + 2*pad - filter_w)/stride + 1)
+  out_w = Int(floor((W + 2*pad - filter_w)/stride + 1))
 
   img = input_data
   if pad != 0
@@ -24,6 +24,26 @@ function im2col(input_data, filter_h, filter_w, stride=1, pad=0)
   return reshape(permutedims(col,(1,2,5,3,4)), N*out_h*out_w, :)
 end
 
+function col2im(col, input_shape, filter_h, filter_w, stride=1, pad=0)
+  H, W, C, N = input_shape
+  out_h = Int(floor((H + 2*pad - filter_h)/stride + 1))
+  out_w = Int(floor((W + 2*pad - filter_w)/stride + 1))
+  col = permutedims(reshape(col, (out_h, out_w, N, filter_h*filter_w, C)), (1,2,4,5,3))
+
+  img = zeros(H + 2*pad + stride - 1, W + 2*pad + stride - 1, C, N)
+  col_idx = 1
+  for x in 1:filter_w
+    x_max = x + stride*(out_w-1)
+    for y in 1:filter_h
+      y_max = y + stride*(out_h-1)
+      img[y:stride:y_max, x:stride:x_max, :, :] = col[:, :, col_idx, :, :]
+      col_idx+=1
+    end
+  end
+
+  return img[(pad+1):(H+pad), (pad+1):(W+pad), :, :]
+end
+
 function Wx2im(Wx, OH, OW, FN, N)
   return reshape(Wx, (OH, OW, FN, N))
 end
@@ -31,6 +51,32 @@ end
 function W2col(W)
   FH,FW,C,FN = size(W)
   return reshape(W, (FH*FW*C, FN))
+end
+
+export Convolution
+mutable struct Convolution
+  W::Array
+  b::Array
+  stride::Number
+  pad::Number
+end
+
+function Convolution(self::Convolution, W, b, stride=1, pad=0)
+  self.W = W
+  self.b = b
+  self.stride = stride
+  self.pad = pad
+end
+
+function forward(self::Convolution, x)
+  FH, FW, C, FN = shape(self.W)
+  H, W, C, N = shape(x)
+  out_h = Int(floor((H + 2*pad - FH)/stride + 1))
+  out_w = Int(floor((W + 2*pad - FW)/stride + 1))
+
+  col = im2col(x, FH, FW, self.stride, self.pad)
+  col_W = W2col(self.W)
+  return Wx2im(col*colW .+ self.b)
 end
 
 # %% draft
@@ -52,13 +98,17 @@ N = 2
 C = 2
 H = 3
 W = 3
+filter_h = 2
+filter_w = 2
 img2 = zeros(H,W, C, N)
 img2[:, :, 1,1] .= img
 img2[:, :, 2,1] .= img.+9
 img2[:, :, 1,2] .= -img
 img2[:, :, 2,2] .= -(img.+9)
 
-col2 = im2col(img2,2,2)
+col2 = im2col(img2, filter_h, filter_w)
+
+col2imed = col2im(col2, (H,W,C,N), filter_h, filter_w)
 
 # %% 重み
 N = 2
