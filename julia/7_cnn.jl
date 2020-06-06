@@ -36,7 +36,7 @@ function col2im(col, input_shape, filter_h, filter_w, stride=1, pad=0)
     x_max = x + stride*(out_w-1)
     for y in 1:filter_h
       y_max = y + stride*(out_h-1)
-      img[y:stride:y_max, x:stride:x_max, :, :] = col[:, :, col_idx, :, :]
+      img[y:stride:y_max, x:stride:x_max, :, :] .+= col[:, :, col_idx, :, :]
       col_idx+=1
     end
   end
@@ -57,6 +57,10 @@ function W2col(W)
   return reshape(W, (FH*FW*C, FN))
 end
 
+function col2W(colW, FH, FW, C, FN)
+  return reshape(colW, (FH, FW, C, FN))
+end
+
 module Convolution
   mutable struct Convolution_st
     W::Array
@@ -66,11 +70,14 @@ module Convolution
     x::Array
     col::Array
     col_W::Array
+    db::Array
+    dW::Array
     forward
+    backward
   end
 
   function new(W, b, stride=1, pad=0)
-    tmp_st = Convolution_st(W, b, stride, pad,  [0], [0], [0], (x)->forward(tmp_st, x))
+    tmp_st = Convolution_st(W, b, stride, pad,  [0], [0], [0], [0], [0], (x)->forward(tmp_st, x), (x)->backward(tmp_st, x))
     return tmp_st
   end
 
@@ -92,7 +99,13 @@ module Convolution
 
   function backward(self::Convolution_st, dout)
     FH, FW, C, FN = size(self.W)
+    dout = Main.im2Wx(dout, FN)
 
+    self.db = sum(dout, dims=1)
+    self.dW = Main.col2W(self.col' * dout, FH, FW, C, FN)
+
+    dcol = dout*self.col_W'
+    return Main.col2im(dcol, size(self.x), FH, FW, self.stride, self.pad)
   end
 end
 
@@ -154,12 +167,18 @@ img3[:, :, 1, 1] = img;
 img3[:, :, 1, 2] = img .+ 9;
 img3
 col3 = im2col(img3,filter_h,filter_w, S,P)
+size(col3)
 affine = col3*colWf
 
 img3_ = Wx2im(affine, out_h, out_w, FN, N)
+size(img3_)
+im2Wx(img3_, FN)
 
-im2Wx(img3_, N)
-
+conv = Convolution.new(Wf, 0, S, P);
+conv.forward(img3)
+dx = conv.backward(ones(size(img3_)))
+conv.dW
+conv.db
 # %%
 using Images, ImageIO
 using PyPlot
