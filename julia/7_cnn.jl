@@ -59,6 +59,9 @@ module Convolution
     b::Number
     stride::Number
     pad::Number
+    x::Array
+    col::Array
+    col_W::Array
     forward
   end
 
@@ -75,7 +78,17 @@ module Convolution
 
     col = Main.im2col(x, FH, FW, self.stride, self.pad)
     col_W = Main.W2col(self.W)
+
+    self.x = x;
+    self.col = col
+    self.col_W = col_W
+
     return Main.Wx2im(col*col_W .+ self.b, out_h, out_w, FN, N)
+  end
+
+  function backward(self::Convolution_st, dout)
+    FH, FW, C, FN = size(self.W)
+
   end
 end
 
@@ -155,21 +168,27 @@ FN = 4
 C = 1
 FH = 3
 FW = 3
-N = 1
+N = 2
 S = 1
 P = 1
 out_h = Int(floor((W+2*P-FH)/S)+1)
 out_w = Int(floor((W+2*P-FW)/S)+1)
 img4 = zeros(H,W, C, N);
 img4[:, :, 1, 1] = lenaAr
+img4[:, :, 1, 2] = lenaAr'
 Wf2 = zeros(FH, FW, C, FN);
+# Identity
 Wf2[2, 2, 1, 1] = 1;
+# avg
 Wf2[:, :, 1, 2] = 0.11 .* ones(3,3);
 Wf2[2, 2, 1, 2] = 0.12;
+# unsharp
 Wf2[:, :, 1, 3] = -0.11 .* ones(3,3);
 Wf2[2, 2, 1, 3] = 1.88;
+# edge
 Wf2[:, :, 1, 4] = 0.5 .* [-1 0 1; -2 0 2; -1 0 1]';
 Wf2[2, 2, 1, 4] = 1;
+Wf2
 conv = Convolution.new(Wf2, 0)
 img4_ = conv.forward(img4)
 size(img4_)
@@ -177,3 +196,7 @@ imshow(img4_[:, :, 1, 1], cmap="gray")
 imshow(img4_[:, :, 2, 1], cmap="gray")
 imshow(img4_[:, :, 3, 1], cmap="gray")
 imshow(img4_[:, :, 4, 1], cmap="gray")
+imshow(img4_[:, :, 1, 2], cmap="gray")
+imshow(img4_[:, :, 2, 2], cmap="gray")
+imshow(img4_[:, :, 3, 2], cmap="gray")
+imshow(img4_[:, :, 4, 2], cmap="gray")
