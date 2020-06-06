@@ -48,6 +48,10 @@ function Wx2im(Wx, OH, OW, FN, N)
   return permutedims(reshape(Wx, (OH, OW, N, FN)), (1, 2, 4, 3))
 end
 
+function im2Wx(im, FN)
+  return reshape(permutedims(im, (1, 2, 4, 3)), (:, FN))
+end
+
 function W2col(W)
   FH,FW,C,FN = size(W)
   return reshape(W, (FH*FW*C, FN))
@@ -153,6 +157,8 @@ col3 = im2col(img3,filter_h,filter_w, S,P)
 affine = col3*colWf
 
 img3_ = Wx2im(affine, out_h, out_w, FN, N)
+
+im2Wx(img3_, N)
 
 # %%
 using Images, ImageIO
