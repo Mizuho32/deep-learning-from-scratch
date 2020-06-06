@@ -45,7 +45,7 @@ function col2im(col, input_shape, filter_h, filter_w, stride=1, pad=0)
 end
 
 function Wx2im(Wx, OH, OW, FN, N)
-  return reshape(Wx, (OH, OW, FN, N))
+  return permutedims(reshape(Wx, (OH, OW, N, FN)), (1, 2, 4, 3))
 end
 
 function W2col(W)
@@ -66,7 +66,7 @@ module Convolution
   end
 
   function new(W, b, stride=1, pad=0)
-    tmp_st = Convolution_st(W, b, stride, pad, (x)->forward(tmp_st, x))
+    tmp_st = Convolution_st(W, b, stride, pad,  [0], [0], [0], (x)->forward(tmp_st, x))
     return tmp_st
   end
 
@@ -151,6 +151,7 @@ img3[:, :, 1, 2] = img .+ 9;
 img3
 col3 = im2col(img3,filter_h,filter_w, S,P)
 affine = col3*colWf
+
 img3_ = Wx2im(affine, out_h, out_w, FN, N)
 
 # %%
