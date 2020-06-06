@@ -53,30 +53,30 @@ function W2col(W)
   return reshape(W, (FH*FW*C, FN))
 end
 
-export Convolution
-mutable struct Convolution
-  W::Array
-  b::Array
-  stride::Number
-  pad::Number
-end
+module Convolution
+  mutable struct Convolution_st
+    W::Array
+    b::Number
+    stride::Number
+    pad::Number
+    forward
+  end
 
-function Convolution(self::Convolution, W, b, stride=1, pad=0)
-  self.W = W
-  self.b = b
-  self.stride = stride
-  self.pad = pad
-end
+  function new(W, b, stride=1, pad=0)
+    tmp_st = Convolution_st(W, b, stride, pad, (x)->forward(tmp_st, x))
+    return tmp_st
+  end
 
-function forward(self::Convolution, x)
-  FH, FW, C, FN = shape(self.W)
-  H, W, C, N = shape(x)
-  out_h = Int(floor((H + 2*pad - FH)/stride + 1))
-  out_w = Int(floor((W + 2*pad - FW)/stride + 1))
+  function forward(self::Convolution_st, x)
+    FH, FW, C, FN = size(self.W)
+    H, W, C, N = size(x)
+    out_h = Int(floor((H + 2*self.pad - FH)/self.stride + 1))
+    out_w = Int(floor((W + 2*self.pad - FW)/self.stride + 1))
 
-  col = im2col(x, FH, FW, self.stride, self.pad)
-  col_W = W2col(self.W)
-  return Wx2im(col*colW .+ self.b)
+    col = Main.im2col(x, FH, FW, self.stride, self.pad)
+    col_W = Main.W2col(self.W)
+    return Main.Wx2im(col*col_W .+ self.b, out_h, out_w, FN, N)
+  end
 end
 
 # %% draft
@@ -158,11 +158,11 @@ FW = 3
 N = 1
 S = 1
 P = 1
-out_h = Int(floor((W+2*P-filter_h)/S)+1)
-out_w = Int(floor((W+2*P-filter_w)/S)+1)
+out_h = Int(floor((W+2*P-FH)/S)+1)
+out_w = Int(floor((W+2*P-FW)/S)+1)
 img4 = zeros(H,W, C, N);
 img4[:, :, 1, 1] = lenaAr
-Wf2 = zeros(filter_h, filter_w, C, FN);
+Wf2 = zeros(FH, FW, C, FN);
 Wf2[2, 2, 1, 1] = 1;
 Wf2[:, :, 1, 2] = 0.11 .* ones(3,3);
 Wf2[2, 2, 1, 2] = 0.12;
@@ -170,10 +170,8 @@ Wf2[:, :, 1, 3] = -0.11 .* ones(3,3);
 Wf2[2, 2, 1, 3] = 1.88;
 Wf2[:, :, 1, 4] = 0.5 .* [-1 0 1; -2 0 2; -1 0 1]';
 Wf2[2, 2, 1, 4] = 1;
-colWf2 = W2col(Wf2);
-col4 = im2col(img4,filter_h,filter_w, S,P)
-affineL = col4*colWf2
-img4_ = Wx2im(affineL, out_h, out_w, FN, N);
+conv = Convolution.new(Wf2, 0)
+img4_ = conv.forward(img4)
 size(img4_)
 imshow(img4_[:, :, 1, 1], cmap="gray")
 imshow(img4_[:, :, 2, 1], cmap="gray")
