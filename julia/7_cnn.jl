@@ -109,6 +109,33 @@ module Convolution
   end
 end
 
+module Pooling
+  mutable struct Pooling_st
+    pool_h::Number
+    pool_w::Number
+    stride::Number
+    pad::Number
+    forward
+    backward
+  end
+
+  function new(pool_h, pool_w, stride=1, pad=0)
+    self = Pooling_st(pool_h, pool_w, stride, pad, (x)->forward(self, x), (x)->backward(self, x))
+    return self
+  end
+
+  function forward(self::Pooling_st, x)
+    H, W, C, N = size(x)
+    out_h = Int(floor((H + 2*self.pad - self.pool_h)/self.stride + 1))
+    out_w = Int(floor((W + 2*self.pad - self.pool_w)/self.stride + 1))
+
+    col = reshape(Main.im2col(x, self.pool_h, self.pool_w, self.stride, self.pad)', (self.pool_h*self.pool_w, :))
+    #return col
+    return permutedims(reshape(maximum(col, dims=1), (C, out_h, out_w, N)), (2, 3, 1, 4))
+  end
+
+end
+
 # %% draft
 out_h = 2
 out_w = 2
@@ -179,6 +206,7 @@ conv.forward(img3)
 dx = conv.backward(ones(size(img3_)))
 conv.dW
 conv.db
+
 # %%
 using Images, ImageIO
 using PyPlot
@@ -226,3 +254,22 @@ imshow(img4_[:, :, 1, 2], cmap="gray")
 imshow(img4_[:, :, 2, 2], cmap="gray")
 imshow(img4_[:, :, 3, 2], cmap="gray")
 imshow(img4_[:, :, 4, 2], cmap="gray")
+
+# %% MaxPool test
+N = 2
+C = 2
+H = 3
+W = 3
+pool_h = 2
+pool_w = 2
+img = [1:3 4:6 7:9]
+img5 = zeros(H,W, C, N)
+img5[:, :, 1,1] .= img
+img5[:, :, 2,1] .= img.+9
+img5[:, :, 1,2] .= -img
+img5[:, :, 2,2] .= -(img.+9)
+img5
+
+pool = Pooling.new(pool_h, pool_w)
+Main.im2col(img5, pool_h, pool_w, 1, 0)
+img5_ = pool.forward(img5)
