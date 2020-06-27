@@ -111,6 +111,8 @@ end
 
 module Pooling
   mutable struct Pooling_st
+    x::Array
+    arg_max::Array
     pool_h::Number
     pool_w::Number
     stride::Number
@@ -120,7 +122,7 @@ module Pooling
   end
 
   function new(pool_h, pool_w, stride=1, pad=0)
-    self = Pooling_st(pool_h, pool_w, stride, pad, (x)->forward(self, x), (x)->backward(self, x))
+    self = Pooling_st([], [], pool_h, pool_w, stride, pad, (x)->forward(self, x), (x, dout)->backward(self, x, dout))
     return self
   end
 
@@ -130,8 +132,32 @@ module Pooling
     out_w = Int(floor((W + 2*self.pad - self.pool_w)/self.stride + 1))
 
     col = reshape(Main.im2col(x, self.pool_h, self.pool_w, self.stride, self.pad)', (self.pool_h*self.pool_w, :))
-    #return col
+
     return permutedims(reshape(maximum(col, dims=1), (C, out_h, out_w, N)), (2, 3, 1, 4))
+  end
+
+  function backward(self::Pooling_st, x, dout)
+    dout = reshape(dout, (4, 1))
+    F1 = zeros(2,2)
+    F1[argmax(x[1:2, 1:2, 1, 1])] = 1
+    F1 = reshape(F1, (1, 4))
+    F2 = zeros(2,2)
+    F2[argmax(x[2:3, 1:2, 1, 1])] = 1
+    F2 = reshape(F2, (1, 4))
+    F3 = zeros(2,2)
+    F3[argmax(x[1:2, 2:3, 1, 1])] = 1
+    F3 = reshape(F3, (1, 4))
+    F4 = zeros(2,2)
+    F4[argmax(x[2:3, 2:3, 1, 1])] = 1
+    F4 = reshape(F4, (1, 4))
+    dcol = [
+      dout[1] .* F1
+      dout[2] .* F2
+      dout[3] .* F3
+      dout[4] .* F4
+                    ]
+    #return Main.col2im(dcol, size(self.x), FH, FW, self.stride, self.pad)
+    return Main.col2im(dcol, (3,3,1,1), 2, 2, 1, 0);
   end
 
 end
@@ -273,3 +299,8 @@ img5
 pool = Pooling.new(pool_h, pool_w)
 Main.im2col(img5, pool_h, pool_w, 1, 0)
 img5_ = pool.forward(img5)
+
+dout = [1 2; 3 4]
+img5_test = copy(img5[:, :, 1, 1])
+img5_test[1, 2, 1, 1] = 10
+dimg5 = pool.backward(img5_test, dout)
