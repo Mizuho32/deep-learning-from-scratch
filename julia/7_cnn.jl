@@ -133,7 +133,7 @@ module Pooling
 
     col = reshape(Main.im2col(x, self.pool_h, self.pool_w, self.stride, self.pad)', (self.pool_h*self.pool_w, :))
 
-    return permutedims(reshape(maximum(col, dims=1), (C, out_h, out_w, N)), (2, 3, 1, 4))
+    return permutedims(reshape(maximum(col, dims=1), (C, out_h, out_w, N)), (2, 3, 1, 4)), col
   end
 
   function backward(self::Pooling_st, x, dout)
@@ -149,8 +149,8 @@ module Pooling
     end
     end
 
-    dcol = dout .* W
-    return Main.col2im(dcol, size(x), 2, 2, 1, 0)
+    dcol = reshape(permutedims(dout .* W, (1,4,2,3)), (:, 2*2*size(dout, 3)))
+    return Main.col2im(dcol, size(x), 2, 2, 1, 0), dcol, dout, W
   end
 
 end
@@ -275,6 +275,7 @@ imshow(img4_[:, :, 3, 2], cmap="gray")
 imshow(img4_[:, :, 4, 2], cmap="gray")
 
 # %% MaxPool test
+## %% init
 N = 2
 C = 2
 H = 3
@@ -282,22 +283,36 @@ W = 3
 pool_h = 2
 pool_w = 2
 img = [1:3 4:6 7:9]
-img5 = zeros(H,W, C, N)
-img5[:, :, 1,1] .= img
-img5[:, :, 2,1] .= img.+9
-img5[:, :, 1,2] .= -img
-img5[:, :, 2,2] .= -(img.+9)
+img5 = zeros(H,W, C, N);
+img5[:, :, 1,1] .= img;
+img5[:, :, 2,1] .= img.+9;
+img5[:, :, 1,2] .= -img;
+img5[:, :, 2,2] .= -(img.+9);
 img5
 
+## %% forward
 pool = Pooling.new(pool_h, pool_w);
-Main.im2col(img5, pool_h, pool_w, 1, 0)
-img5_ = pool.forward(img5)
+#Main.im2col(img5, pool_h, pool_w, 1, 0)
+img5_,col = pool.forward(img5);
+img5_
+col
 
-dout = zeros(2, 2, 2, 1);
+## %% backward
+dout = zeros(2, 2, C, N);
 dout[:,:, 1,1] = [1 2; 3 4];
 dout[:,:, 2,1] = 4 .+ [1 2; 3 4];
+dout[:,:, 1,2] = -dout[:,:, 1,1];
+dout[:,:, 2,2] = -dout[:,:, 2,1];
 
-img5_test = zeros(3,3, 2,1);
-img5_test[:,:, :,1] = copy(img5[:, :, :, 1]);
+img5_test = zeros(3,3, C,N);
+img5_test[:,:, :,:] = copy(img5[:, :, :, :]);
 img5_test[1, 2, 1, 1] = 10;
-dimg5 = pool.backward(img5_test, dout)
+img5_test
+pool = Pooling.new(pool_h, pool_w);
+dimg5, dcol, dout, W = pool.backward(img5_test, dout);
+dimg5
+
+dcol# = reshape(permutedims(dout .* W, (1,4,2,3)), (:, 2*2*C))
+dout .* W
+dout
+W
