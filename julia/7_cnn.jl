@@ -137,27 +137,20 @@ module Pooling
   end
 
   function backward(self::Pooling_st, x, dout)
-    dout = reshape(dout, (4, 1))
-    F1 = zeros(2,2)
-    F1[argmax(x[1:2, 1:2, 1, 1])] = 1
-    F1 = reshape(F1, (1, 4))
-    F2 = zeros(2,2)
-    F2[argmax(x[2:3, 1:2, 1, 1])] = 1
-    F2 = reshape(F2, (1, 4))
-    F3 = zeros(2,2)
-    F3[argmax(x[1:2, 2:3, 1, 1])] = 1
-    F3 = reshape(F3, (1, 4))
-    F4 = zeros(2,2)
-    F4[argmax(x[2:3, 2:3, 1, 1])] = 1
-    F4 = reshape(F4, (1, 4))
-    dcol = [
-      dout[1] .* F1
-      dout[2] .* F2
-      dout[3] .* F3
-      dout[4] .* F4
-                    ]
-    #return Main.col2im(dcol, size(self.x), FH, FW, self.stride, self.pad)
-    return Main.col2im(dcol, (3,3,1,1), 2, 2, 1, 0);
+    dout = reshape(dout, (4, 1, size(dout, 3), size(dout, 4)) )
+    W = zeros((4, 4, size(dout, 3), size(dout, 4)))
+    for n in 1:size(dout, 4)
+    for c in 1:size(dout, 3)
+      tmpx = reshape(x[:, :, c, n], (3,3, 1, 1))
+      arg_max = argmax(Main.im2col(tmpx, 2, 2, 1, 0), dims=2)
+      for car in arg_max
+        W[car[1], car[2], c, n] = 1
+      end
+    end
+    end
+
+    dcol = dout .* W
+    return Main.col2im(dcol, size(x), 2, 2, 1, 0)
   end
 
 end
@@ -296,11 +289,15 @@ img5[:, :, 1,2] .= -img
 img5[:, :, 2,2] .= -(img.+9)
 img5
 
-pool = Pooling.new(pool_h, pool_w)
+pool = Pooling.new(pool_h, pool_w);
 Main.im2col(img5, pool_h, pool_w, 1, 0)
 img5_ = pool.forward(img5)
 
-dout = [1 2; 3 4]
-img5_test = copy(img5[:, :, 1, 1])
-img5_test[1, 2, 1, 1] = 10
+dout = zeros(2, 2, 2, 1);
+dout[:,:, 1,1] = [1 2; 3 4];
+dout[:,:, 2,1] = 4 .+ [1 2; 3 4];
+
+img5_test = zeros(3,3, 2,1);
+img5_test[:,:, :,1] = copy(img5[:, :, :, 1]);
+img5_test[1, 2, 1, 1] = 10;
 dimg5 = pool.backward(img5_test, dout)
