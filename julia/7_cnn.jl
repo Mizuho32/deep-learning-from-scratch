@@ -133,6 +133,9 @@ module Pooling
 
     col = reshape(Main.im2col(x, self.pool_h, self.pool_w, self.stride, self.pad)', (self.pool_h*self.pool_w, :))
 
+    self.x = x
+    self.arg_max = (argmax.(eachcol(col))' .== 1:size(col, 1))
+    #argmax.(eachcol(A2)) .== (1:2)'
     return permutedims(reshape(maximum(col, dims=1), (C, out_h, out_w, N)), (2, 3, 1, 4)), col
   end
 
@@ -293,10 +296,14 @@ img5
 ## %% forward
 pool = Pooling.new(pool_h, pool_w);
 #Main.im2col(img5, pool_h, pool_w, 1, 0)
+img5[1, 2, 1, 1] = 10;
 img5_,col = pool.forward(img5);
 img5_
 col
+pool.arg_max
 
+# (pixcel, C, filter location, N)
+permutedims(reshape(pool.arg_max, (4, 2, 4, 2)), (3,1,2,4))
 ## %% backward
 dout = zeros(2, 2, C, N);
 dout[:,:, 1,1] = [1 2; 3 4];
