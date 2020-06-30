@@ -124,30 +124,34 @@ module Pooling
   end
 
   function new(pool_h, pool_w, stride=1, pad=0)
-    self = Pooling_st([], [], pool_h, pool_w, 0, 0, stride, pad, (x)->forward(self, x), (x, dout)->backward(self, x, dout))
+    self = Pooling_st([], [], pool_h, pool_w, 0, 0, stride, pad, (x)->forward(self, x), (dout)->backward(self, dout))
     return self
   end
 
   function forward(self::Pooling_st, x)
     H, W, C, N = size(x)
-    out_h = Int(floor((H + 2*self.pad - self.pool_h)/self.stride + 1))
-    out_w = Int(floor((W + 2*self.pad - self.pool_w)/self.stride + 1))
+    self.out_h = Int(floor((H + 2*self.pad - self.pool_h)/self.stride + 1))
+    self.out_w = Int(floor((W + 2*self.pad - self.pool_w)/self.stride + 1))
 
     col = reshape(Main.im2col(x, self.pool_h, self.pool_w, self.stride, self.pad)', (self.pool_h*self.pool_w, :))
 
     self.x = x
     self.arg_max = (argmax.(eachcol(col))' .== 1:size(col, 1))
     #argmax.(eachcol(A2)) .== (1:2)'
-    return permutedims(reshape(maximum(col, dims=1), (C, out_h, out_w, N)), (2, 3, 1, 4)), col
+    return permutedims(reshape(maximum(col, dims=1), (C, self.out_h, self.out_w, N)), (2, 3, 1, 4)), col
   end
 
-  function backward(self::Pooling_st, x, dout)
-    H, W, C, N = size(x)
-    dout = reshape(dout, (self.pool_h*self.pool_w, 1, size(dout, 3), size(dout, 4)) )
-    W = permutedims(reshape(self.arg_max, (self.pool_h*self.pool_w, C, self.out_h*self.out_w, N)), (3,1,2,4))
+  function backward(self::Pooling_st, dout)
+    sizex = size(self.x)
+    H, W, C, N = sizex
+    pool_hw = self.pool_h*self.pool_w
+    out_hw  = self.out_h*self.out_w
 
-    dcol = reshape(permutedims(dout .* W, (1,4,2,3)), (:, self.pool_h*self.pool_w*size(dout, 3)))
-    return Main.col2im(dcol, size(x), self.pool_h, self.pool_w, self.stride, self.pad), dcol, dout, W
+    dout = reshape(dout, (out_hw, 1, C, N))
+    W = permutedims(reshape(self.arg_max, (pool_hw, C, out_hw, N)), (3,1,2,4))
+
+    dcol = reshape(permutedims(dout .* W, (1,4,2,3)), (:, pool_hw*C))
+    return Main.col2im(dcol, sizex, self.pool_h, self.pool_w, self.stride, self.pad), dcol, dout, W
   end
 
 end
@@ -305,12 +309,7 @@ dout[:,:, 2,1] = 4 .+ [1 2; 3 4];
 dout[:,:, 1,2] = -dout[:,:, 1,1];
 dout[:,:, 2,2] = -dout[:,:, 2,1];
 
-img5_test = zeros(3,3, C,N);
-img5_test[:,:, :,:] = copy(img5[:, :, :, :]);
-img5_test[1, 2, 1, 1] = 10;
-img5_test
-pool = Pooling.new(pool_h, pool_w);
-dimg5, dcol, dout, W = pool.backward(img5_test, dout);
+dimg5, dcol, dout, W = pool.backward(dout);
 dimg5
 
 dcol# = reshape(permutedims(dout .* W, (1,4,2,3)), (:, 2*2*C))
