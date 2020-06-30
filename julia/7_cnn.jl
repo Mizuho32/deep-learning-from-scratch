@@ -115,6 +115,8 @@ module Pooling
     arg_max::Array
     pool_h::Number
     pool_w::Number
+    out_h::Number
+    out_w::Number
     stride::Number
     pad::Number
     forward
@@ -122,7 +124,7 @@ module Pooling
   end
 
   function new(pool_h, pool_w, stride=1, pad=0)
-    self = Pooling_st([], [], pool_h, pool_w, stride, pad, (x)->forward(self, x), (x, dout)->backward(self, x, dout))
+    self = Pooling_st([], [], pool_h, pool_w, 0, 0, stride, pad, (x)->forward(self, x), (x, dout)->backward(self, x, dout))
     return self
   end
 
@@ -140,20 +142,12 @@ module Pooling
   end
 
   function backward(self::Pooling_st, x, dout)
-    dout = reshape(dout, (4, 1, size(dout, 3), size(dout, 4)) )
-    W = zeros((4, 4, size(dout, 3), size(dout, 4)))
-    for n in 1:size(dout, 4)
-    for c in 1:size(dout, 3)
-      tmpx = reshape(x[:, :, c, n], (3,3, 1, 1))
-      arg_max = argmax(Main.im2col(tmpx, 2, 2, 1, 0), dims=2)
-      for car in arg_max
-        W[car[1], car[2], c, n] = 1
-      end
-    end
-    end
+    H, W, C, N = size(x)
+    dout = reshape(dout, (self.pool_h*self.pool_w, 1, size(dout, 3), size(dout, 4)) )
+    W = permutedims(reshape(self.arg_max, (self.pool_h*self.pool_w, C, self.out_h*self.out_w, N)), (3,1,2,4))
 
-    dcol = reshape(permutedims(dout .* W, (1,4,2,3)), (:, 2*2*size(dout, 3)))
-    return Main.col2im(dcol, size(x), 2, 2, 1, 0), dcol, dout, W
+    dcol = reshape(permutedims(dout .* W, (1,4,2,3)), (:, self.pool_h*self.pool_w*size(dout, 3)))
+    return Main.col2im(dcol, size(x), self.pool_h, self.pool_w, self.stride, self.pad), dcol, dout, W
   end
 
 end
