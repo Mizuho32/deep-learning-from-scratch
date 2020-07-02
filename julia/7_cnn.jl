@@ -137,7 +137,6 @@ module Pooling
 
     self.x = x
     self.arg_max = (argmax.(eachcol(col))' .== 1:size(col, 1))
-    #argmax.(eachcol(A2)) .== (1:2)'
     return permutedims(reshape(maximum(col, dims=1), (C, self.out_h, self.out_w, N)), (2, 3, 1, 4)), col
   end
 
@@ -281,8 +280,8 @@ N = 2
 C = 2
 H = 3
 W = 3
-pool_h = 2
-pool_w = 2
+pool_h = 3
+pool_w = 3
 img = [1:3 4:6 7:9]
 img5 = zeros(H,W, C, N);
 img5[:, :, 1,1] .= img;
@@ -295,24 +294,58 @@ img5
 pool = Pooling.new(pool_h, pool_w);
 #Main.im2col(img5, pool_h, pool_w, 1, 0)
 img5[1, 2, 1, 1] = 10;
+img5
 img5_,col = pool.forward(img5);
 img5_
 col
 pool.arg_max
 
-# (pixcel, C, filter location, N)
-permutedims(reshape(pool.arg_max, (4, 2, 4, 2)), (3,1,2,4))
 ## %% backward
-dout = zeros(2, 2, C, N);
-dout[:,:, 1,1] = [1 2; 3 4];
-dout[:,:, 2,1] = 4 .+ [1 2; 3 4];
-dout[:,:, 1,2] = -dout[:,:, 1,1];
-dout[:,:, 2,2] = -dout[:,:, 2,1];
 
-dimg5, dcol, dout, W = pool.backward(dout);
+dout = ones(size(img5_));
+#dout[:,:, 1,1] = [1 2; 3 4];
+#dout[:,:, 2,1] = 4 .+ [1 2; 3 4];
+#dout[:,:, 1,2] = -dout[:,:, 1,1];
+#dout[:,:, 2,2] = -dout[:,:, 2,1];
+dout
+
+dimg5, dcol, dout, W = pool.backward(dout)
 dimg5
 
 dcol# = reshape(permutedims(dout .* W, (1,4,2,3)), (:, 2*2*C))
 dout .* W
 dout
 W
+
+# %% Max pool lena
+H, W, C, N = size(img4_)
+C = 1
+pool_h = 2
+pool_w = 2
+S = 2
+P = 0
+pool = Pooling.new(pool_h, pool_w, S, P);
+img7 = lenaAr
+img7 = reshape(lenaAr.*255, (256, 256, C, 1));
+img7_, _ = pool.forward(img7);
+dimg7_,_,_,_ = pool.backward(img7_ .* 0 .+ 1);
+img7[1:10, 1:6, 1, 1]
+img7_[1:10, 1:6, 1, 1]
+dimg7_[1:10, 1:6, 1, 1]
+imshow(img7_[:,:,1,1], cmap="gray")
+imshow(dimg7_[:,:,1,1], cmap="gray")
+
+img6 = img4_;
+img6_, _ = pool.forward(img6);
+dimg6_, _, _, _ = pool.backward(img6_ .* 0 .+ 1);
+
+size(img6)
+size(img6_)
+imshow(img6_[:, :, 1, 1], cmap="gray")
+imshow(img6_[:, :, 2, 1], cmap="gray")
+imshow(img6_[:, :, 3, 1], cmap="gray")
+imshow(img6_[:, :, 4, 1], cmap="gray")
+imshow(dimg6_[:, :, 1, 1], cmap="gray")
+imshow(dimg6_[:, :, 2, 1], cmap="gray")
+imshow(dimg6_[:, :, 3, 1], cmap="gray")
+imshow(dimg6_[:, :, 4, 1], cmap="gray")
