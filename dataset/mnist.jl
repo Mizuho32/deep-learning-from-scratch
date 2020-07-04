@@ -124,7 +124,7 @@ function load_mnist(;normalize=true, flatten=true, one_hot_label=false)
 
   if !flatten
     for key in ("train_img", "test_img")
-      dataset[key] = reshape(dataset[key].(:, 1, 28, 28))
+      dataset[key] = permutedims(reshape(dataset[key], (:, 1, 28, 28)), (4, 3, 2, 1))
     end
   end
 
