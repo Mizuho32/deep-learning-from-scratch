@@ -64,7 +64,7 @@ end
 module Convolution
   mutable struct Convolution_st
     W::Array
-    b::Number
+    b::Array
     stride::Number
     pad::Number
     x::Array
@@ -137,7 +137,7 @@ module Pooling
 
     self.x = x
     self.arg_max = (argmax.(eachcol(col))' .== 1:size(col, 1))
-    return permutedims(reshape(maximum(col, dims=1), (C, self.out_h, self.out_w, N)), (2, 3, 1, 4)), col
+    return permutedims(reshape(maximum(col, dims=1), (C, self.out_h, self.out_w, N)), (2, 3, 1, 4))#, col
   end
 
   function backward(self::Pooling_st, dout)
@@ -150,10 +150,119 @@ module Pooling
     W = permutedims(reshape(self.arg_max, (pool_hw, C, out_hw, N)), (3,1,2,4))
 
     dcol = reshape(permutedims(dout .* W, (1,4,2,3)), (:, pool_hw*C))
-    return Main.col2im(dcol, sizex, self.pool_h, self.pool_w, self.stride, self.pad), dcol, dout, W
+    return Main.col2im(dcol, sizex, self.pool_h, self.pool_w, self.stride, self.pad)#, dcol, dout, W
   end
 
 end
+
+module SimpleConvNet
+  layerOrder = ["Conv1", "Relu1", "Pool1", "Affine1", "Relu2", "Affine2"]
+
+  export SimpleConvNet_st
+  mutable struct SimpleConvNet_st
+    params::Dict{String, Array}
+    layers::Dict{String, Any}
+    last_layer
+    grads::Dict{String, Array}
+    predict
+    loss
+    gradient
+  end
+
+  function new(input_dim=(28, 28, 1), conv_param=Dict("filter_num" => 30, "filter_size" => 5, "pad" => 0, "stride" => 1), hidden_size=100, output_size=10, weight_init_std=0.01)
+
+    filter_num = conv_param["filter_num"]
+    filter_size = conv_param["filter_size"]
+    filter_pad = conv_param["pad"]
+    filter_stride = conv_param["stride"]
+    input_size = input_dim[1]
+    conv_output_size = (input_size - filter_size + 2*filter_pad) / filter_stride + 1
+    pool_output_size = Int(floor(filter_num * (conv_output_size/2)*(conv_output_size/2)))
+
+    W1 = weight_init_std .* randn(filter_size, filter_size, input_dim[3], filter_num)
+    b1 = zeros(1, filter_num)
+    W2 = weight_init_std .* randn(pool_output_size, hidden_size)'
+    b2 = zeros(hidden_size)
+    W3 = weight_init_std .* randn(hidden_size, output_size)'
+    b3 = zeros(output_size)
+    self = SimpleConvNet_st(
+      Dict(
+        "W1" => W1,
+        "b1" => b1,
+        "W2" => W2,
+        "b2" => b2,
+        "W3" => W3,
+        "b3" => b3),
+      Dict(
+        "Conv1" => Main.Convolution.new(W1,
+                                        b1,
+                                        conv_param["stride"],
+                                        conv_param["pad"]),
+        "Relu1"   => Main.Relu.new(),
+        "Pool1"   => Main.Pooling.new(2, 2, 2),
+        "Affine1" => Main.Affine.new(W2, b2),
+        "Relu2"   => Main.Relu.new(),
+        "Affine2" => Main.Affine.new(W3, b3)),
+      Main.SoftmaxWithLoss.new(),
+      Dict(
+        "W1" => [],
+        "b1" => [],
+        "W2" => [],
+        "W2" => [],
+        "W3" => [],
+        "b3" => []),
+     (x)->predict(self, x),
+     (x, t)->loss(self, x, t),
+     (x, t)->gradient(self, x, t))
+
+     return self
+  end
+
+  function predict(self::SimpleConvNet_st, x::Array)
+    for lname in SimpleConvNet.layerOrder
+      layer = self.layers[lname]
+      println("lname=$(lname), x=$(size(x))")
+      x = layer.forward(x)
+    end
+    return x
+  end
+
+  function loss(self::SimpleConvNet_st, x::Array, t)
+    y = self.predict(x)
+    return self.last_layer.forward(y, t)
+  end
+
+  function gradient(self::SimpleConvNet_st, x::Array, t)
+    # forwad
+    self.loss(x, t)
+
+    # backward
+    dout = 1
+    dout = self.last_layer.backward(dout)
+
+    for lname in reverse(layerOrder)
+      layer = self.layers[lname]
+      dout = layer.backward(dout)
+    end
+
+    # 設定
+    self.grads["W1"] = self.layers["Conv1"].dW
+    self.grads["b1"] = self.layers["Conv1"].db
+    self.grads["W2"] = self.layers["Affine1"].dW
+    self.grads["b2"] = self.layers["Affine1"].db
+    self.grads["W3"] = self.layers["Affine2"].dW
+    self.grads["b3"] = self.layers["Affine2"].db
+    return self.grads
+  end
+  function accuracy(x, t)
+    y = predict(x)
+    y = map(r->r[1], argmax(y, dims=1))
+    t = map(r->r[1], argmax(t, dims=1))
+
+    return sum(y .== t) / size(x, 2)
+  end
+end
+
 
 # %% draft
 out_h = 2
@@ -349,3 +458,64 @@ imshow(dimg6_[:, :, 1, 1], cmap="gray")
 imshow(dimg6_[:, :, 2, 1], cmap="gray")
 imshow(dimg6_[:, :, 3, 1], cmap="gray")
 imshow(dimg6_[:, :, 4, 1], cmap="gray")
+
+# %% main
+
+# %% imports
+using PyPlot
+include("./dataset/mnist.jl")
+include("julia/lib7.jl"  )
+struct List
+  train_loss_list::Array
+  train_acc_list::Array
+  test_acc_list::Array
+end
+
+# %% Load
+(x_train, t_train), (x_test, t_test) = MNIST.load_mnist(one_hot_label=true, normalize=true, flatten=false);
+train_size = size(x_train, 4)
+
+# test
+size(x_train)
+imshow(x_train[:, :, 1, 1])
+t_train[1, :]
+
+network = SimpleConvNet.new();
+network.predict(x_batch)
+grads = network.gradient(x_batch, t_batch);
+
+# %% parameter inits
+iters_num = 1#10000
+batch_size = 10#0
+learning_rate = 0.1
+input_size = 784
+hidden_size = 50
+output_size = 10
+iter_per_epoch = Int(max(train_size/batch_size, 1))
+
+# %% AdaGrad
+using .AdaGrad
+opt = AdaGrad.new(learning_rate);
+network = SimpleConvNet.new()
+adalist = List(zeros(iters_num), [], [])
+
+for i in 1:iters_num
+  batch_mask = rand(1:train_size, batch_size);
+  x_batch = x_train[:, :, :, batch_mask];
+  t_batch = t_train[batch_mask, :]';
+
+  grads = network.gradient(x_batch, t_batch)
+
+  opt.update(network.params, grads)
+
+  loss_ = network.loss(x_batch, t_batch)
+  adalist.train_loss_list[i] = loss_
+
+  if i % iter_per_epoch == 0
+    train_acc = SimpleConvNet.accuracy(x_train', t_train')
+    test_acc = SimpleConvNet.accuracy(x_test', t_test')
+    push!(adalist.train_acc_list, train_acc)
+    push!(adalist.test_acc_list, test_acc)
+    println("iter: $i loss: $loss_ train acc: $train_acc test acc: $test_acc")
+  end
+end
