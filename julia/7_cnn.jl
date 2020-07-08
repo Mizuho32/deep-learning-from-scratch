@@ -167,6 +167,7 @@ module SimpleConvNet
     predict
     loss
     gradient
+    accuracy
   end
 
   function new(input_dim=(28, 28, 1), conv_param=Dict("filter_num" => 30, "filter_size" => 5, "pad" => 0, "stride" => 1), hidden_size=100, output_size=10, weight_init_std=0.01)
@@ -213,7 +214,8 @@ module SimpleConvNet
         "b3" => []),
      (x)->predict(self, x),
      (x, t)->loss(self, x, t),
-     (x, t)->gradient(self, x, t))
+     (x, t)->gradient(self, x, t),
+     (x, t)->accuracy(self, x, t))
 
      return self
   end
@@ -221,7 +223,7 @@ module SimpleConvNet
   function predict(self::SimpleConvNet_st, x::Array)
     for lname in SimpleConvNet.layerOrder
       layer = self.layers[lname]
-      println("lname=$(lname), x=$(size(x))")
+      #println("lname=$(lname), x=$(size(x))")
       x = layer.forward(x)
     end
     return x
@@ -254,12 +256,26 @@ module SimpleConvNet
     self.grads["b3"] = self.layers["Affine2"].db
     return self.grads
   end
-  function accuracy(x, t)
-    y = predict(x)
-    y = map(r->r[1], argmax(y, dims=1))
-    t = map(r->r[1], argmax(t, dims=1))
+  function accuracy(self::SimpleConvNet_st, x, t, batch_size=500)
+    t = argmax.(eachrow(t))
+    acc = 0.0
 
-    return sum(y .== t) / size(x, 2)
+    for i in 1:(Int(size(x, 4) / batch_size))
+        #println((i-1)*batch_size+1:i*batch_size)
+        tx = x[:, :, :, (i-1)*batch_size+1:i*batch_size]
+        tt = t[(i-1)*batch_size+1:i*batch_size]'
+        y = self.predict(tx)
+        y = argmax.(eachcol(y))
+        acc += sum(y == tt)
+    end
+
+    return acc / size(x, 4)
+
+    #y = self.predict(x)
+    #y = map(r->r[1], argmax(y, dims=1))
+    #t = map(r->r[1], argmax(t, dims=1))
+#
+    #return sum(y .== t) / size(x, 2)
   end
 end
 
@@ -305,7 +321,7 @@ filter_h = 3
 filter_w = 3
 S = 1
 P = 1
-out_h = Int(floor((W+2*P-filter_h)/S)+1)
+out_h = Int(floor((H+2*P-filter_h)/S)+1)
 out_w = Int(floor((W+2*P-filter_w)/S)+1)
 Wf = zeros(filter_h, filter_w, C, FN);
 Wf[2, 2, 1, 1] = 1;
@@ -476,7 +492,7 @@ end
 train_size = size(x_train, 4)
 
 # test
-size(x_train)
+size(t_train)
 imshow(x_train[:, :, 1, 1])
 t_train[1, :]
 
@@ -485,8 +501,8 @@ network.predict(x_batch)
 grads = network.gradient(x_batch, t_batch);
 
 # %% parameter inits
-iters_num = 1#10000
-batch_size = 10#0
+iters_num = 10000
+batch_size = 100
 learning_rate = 0.1
 input_size = 784
 hidden_size = 50
@@ -496,7 +512,7 @@ iter_per_epoch = Int(max(train_size/batch_size, 1))
 # %% AdaGrad
 using .AdaGrad
 opt = AdaGrad.new(learning_rate);
-network = SimpleConvNet.new()
+network = SimpleConvNet.new();
 adalist = List(zeros(iters_num), [], [])
 
 for i in 1:iters_num
@@ -512,10 +528,24 @@ for i in 1:iters_num
   adalist.train_loss_list[i] = loss_
 
   if i % iter_per_epoch == 0
-    train_acc = SimpleConvNet.accuracy(x_train', t_train')
-    test_acc = SimpleConvNet.accuracy(x_test', t_test')
+    train_acc = network.accuracy(x_train, t_train)
+    test_acc = network.accuracy(x_test, t_test)
     push!(adalist.train_acc_list, train_acc)
     push!(adalist.test_acc_list, test_acc)
     println("iter: $i loss: $loss_ train acc: $train_acc test acc: $test_acc")
   end
 end
+
+# %% save
+using JLD2, FileIO
+save("./dataset/7_AdaGrad_Wb.jld2", "params", network.params, "train_acc_list", adalist.train_acc_list, "test_acc_list", adalist.test_acc_list, "train_loss_list", adalist.train_loss_list)
+
+# %%
+network = SimpleConvNet.new();
+size()
+train_acc = network.accuracy(x_train, t_train)
+network.predict(x_batch)
+
+Int(60000/100)*100
+(3-1)*100+1
+3*100
