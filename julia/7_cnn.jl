@@ -215,9 +215,19 @@ module SimpleConvNet
      (x)->predict(self, x),
      (x, t)->loss(self, x, t),
      (x, t)->gradient(self, x, t),
-     (x, t)->accuracy(self, x, t))
+     (x, t, b=500)->accuracy(self, x, t, b))
 
      return self
+  end
+
+  export load_param
+  function load_param(self, params)
+    self.layers["Conv1"].W = params["W1"]
+    self.layers["Conv1"].b = params["b1"]
+    self.layers["Affine1"].W = params["W2"]
+    self.layers["Affine1"].b = params["b2"]
+    self.layers["Affine2"].W = params["W3"]
+    self.layers["Affine2"].b = params["b3"]
   end
 
   function predict(self::SimpleConvNet_st, x::Array)
@@ -261,21 +271,14 @@ module SimpleConvNet
     acc = 0.0
 
     for i in 1:(Int(size(x, 4) / batch_size))
-        #println((i-1)*batch_size+1:i*batch_size)
-        tx = x[:, :, :, (i-1)*batch_size+1:i*batch_size]
-        tt = t[(i-1)*batch_size+1:i*batch_size]'
-        y = self.predict(tx)
-        y = argmax.(eachcol(y))
-        acc += sum(y == tt)
+      tx = x[:, :, :, (i-1)*batch_size+1:i*batch_size]
+      tt = t[(i-1)*batch_size+1:i*batch_size]'
+      y = self.predict(tx)
+      y = reshape(argmax.(eachcol(y)), (1, size(y, 2)))
+      acc += sum(y .== tt)
     end
 
     return acc / size(x, 4)
-
-    #y = self.predict(x)
-    #y = map(r->r[1], argmax(y, dims=1))
-    #t = map(r->r[1], argmax(t, dims=1))
-#
-    #return sum(y .== t) / size(x, 2)
   end
 end
 
@@ -491,18 +494,21 @@ end
 (x_train, t_train), (x_test, t_test) = MNIST.load_mnist(one_hot_label=true, normalize=true, flatten=false);
 train_size = size(x_train, 4)
 
-# test
-size(t_train)
-imshow(x_train[:, :, 1, 1])
-t_train[1, :]
+# %% test
+n = 2
+argmax(t_test[n, :])-1
+argmax(network.predict(x_test[:, :, :, n:n]))[1]-1
+imshow(x_test[:, :, 1, n])
 
+#params = network.params
+batch_size = 500*3
 network = SimpleConvNet.new();
-network.predict(x_batch)
-grads = network.gradient(x_batch, t_batch);
+SimpleConvNet.load_param(network, params);
+acc = network.accuracy(x_test[:, :, :, 1:batch_size], t_test[1:batch_size, :])
 
 # %% parameter inits
 iters_num = 10000
-batch_size = 100
+batch_size = 2000
 learning_rate = 0.1
 input_size = 784
 hidden_size = 50
@@ -528,8 +534,8 @@ for i in 1:iters_num
   adalist.train_loss_list[i] = loss_
 
   if i % iter_per_epoch == 0
-    train_acc = network.accuracy(x_train, t_train)
-    test_acc = network.accuracy(x_test, t_test)
+    train_acc = network.accuracy(x_train, t_train, 2000)
+    test_acc = network.accuracy(x_test, t_test, 2000)
     push!(adalist.train_acc_list, train_acc)
     push!(adalist.test_acc_list, test_acc)
     println("iter: $i loss: $loss_ train acc: $train_acc test acc: $test_acc")
