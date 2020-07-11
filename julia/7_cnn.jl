@@ -508,7 +508,7 @@ acc = network.accuracy(x_test[:, :, :, 1:batch_size], t_test[1:batch_size, :])
 
 # %% parameter inits
 iters_num = 10000
-batch_size = 2000
+batch_size = 100
 learning_rate = 0.1
 input_size = 784
 hidden_size = 50
@@ -546,12 +546,11 @@ end
 using JLD2, FileIO
 save("./dataset/7_AdaGrad_Wb.jld2", "params", network.params, "train_acc_list", adalist.train_acc_list, "test_acc_list", adalist.test_acc_list, "train_loss_list", adalist.train_loss_list)
 
-# %%
+# %% load weights
+params = load("./dataset/7_AdaGrad_Wb.jld2", "params")
 network = SimpleConvNet.new();
-size()
-train_acc = network.accuracy(x_train, t_train)
-network.predict(x_batch)
+SimpleConvNet.load_param(network, params);
 
-Int(60000/100)*100
-(3-1)*100+1
-3*100
+# %% See weights
+
+imshow(network.params["W1"][:, :, 1, 1], cmap="gray")
