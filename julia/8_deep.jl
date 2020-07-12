@@ -5,7 +5,6 @@ using PyPlot
 pickle = pyimport("pickle")
 
 module DeepConvNet
-  layerOrder = ["Conv1", "Relu1", "Pool1", "Affine1", "Relu2", "Affine2"]
 
   export DeepConvNet_st
   mutable struct DeepConvNet_st
@@ -26,7 +25,7 @@ module DeepConvNet
     stride::Number
   end
 
-  function new(input_dim=(28, 28, 1), conv_params=[ConvParam(16, 3, 1, 1),ConvParam(16, 3, 1, 1),ConvParam(32, 3, 1, 1),ConvParam(32, 3, 2, 1),ConvParam(64, 3, 1, 1),ConvParam(64, 3, 1, 1),], hidden_size=50, output_size=10)
+  function new(input_dim=(28, 28, 1), conv_params=[ConvParam(16, 3, 1, 1),ConvParam(16, 3, 1, 1),ConvParam(32, 3, 1, 1),ConvParam(32, 3, 2, 1),ConvParam(64, 3, 1, 1),ConvParam(64, 3, 1, 1),], hidden_size=50, output_size=10; numpymode=false)
     pre_node_nums = [[1*3*3] map(cp->cp.filter_num*cp.filter_size^2, conv_params)' [hidden_size]]
     weight_init_scales = sqrt.(2.0 ./ pre_node_nums)
 
@@ -52,10 +51,10 @@ module DeepConvNet
         insert!(layers, length(layers)+1, Main.Pooling.new(2, 2, 2))
       end
     end
-    insert!(layers, length(layers)+1, Main.Affine.new(params["W7"], params["b7"]))
+    insert!(layers, length(layers)+1, Main.Affine.new(params["W7"], params["b7"], numpymode))
     insert!(layers, length(layers)+1, Main.Relu.new())
     insert!(layers, length(layers)+1, Main.Dropout.new(0.5))
-    insert!(layers, length(layers)+1, Main.Affine.new(params["W8"], params["b8"]))
+    insert!(layers, length(layers)+1, Main.Affine.new(params["W8"], params["b8"], numpymode))
     insert!(layers, length(layers)+1, Main.Dropout.new(0.5))
 
 
@@ -113,11 +112,13 @@ module DeepConvNet
     for layer in self.layers
       #println(typeof(layer))
       #print("$(size(x))->")
+      #print("$(sum(x))->")
       if isa(layer, Main.Dropout.Dropout_st)
         x = layer.forward(x, train_flg)
       else
         x = layer.forward(x)
       end
+      #println(sum(x))
       #println(size(x))
     end
     return x
@@ -173,14 +174,14 @@ function unpickle(filename)
 end
 
 # %% Inference
-network = DeepConvNet.new();
+network = DeepConvNet.new(numpymode=true);
 
 # %% load pickle
 pdata = unpickle("./ch08/deep_convnet_params.pkl");
 DeepConvNet.load_pickle(network, pdata)
-tmp = "W8"
+tmp = "W7"
 size(pdata[tmp])#[1:5, 1:5]
-size(network.layers[19].W)#.W[1:5, 1:5]
+size(network.layers[16].W)#.W[1:5, 1:5]
 
 # %% Load
 (x_train, t_train), (x_test, t_test) = MNIST.load_mnist(one_hot_label=true, flatten=false);
@@ -188,13 +189,18 @@ train_size = size(x_train, 4)
 
 # %% test
 size(network.layers[16].W)
-n = 2
+n = 3
 argmax(t_test[n, :])-1
 size(network.layers[16].W)
 size(network.layers[16].b)
+network.layers[16].W[1:3, 1:3]'
 size(network.layers[16].forward(ones(4,4,64,1)))
 argmax(network.predict(x_test[:, :, :, n:n]))[1]-1
+maximum(x_test[:, :, :, n:n])
+sum(network.layers[19].x)
+network.layers[18].dropout_ratio
 imshow(x_test[:, :, 1, n])
+test_acc = network.accuracy(x_test, t_test, 500)
 
 # %% main
 

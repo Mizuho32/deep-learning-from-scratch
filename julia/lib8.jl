@@ -83,14 +83,22 @@ module Affine
     db::Array
     forward
     backward
+    numpymode::Bool
   end
-  function new(W, b)
-    self = Affine_st(W, b, zeros(size(W, 2), 0), (), 0 .*W, 0 .*b, (x)->forward(self, x), (d)->backward(self, d))
+  function new(W, b, numpymode=false)
+    self = Affine_st(W, b, zeros(size(W, 2), 0), (), 0 .*W, 0 .*b, (x)->forward(self, x), (d)->backward(self, d), numpymode)
     return self
   end
   function forward(self::Affine_st, x)
     self.original_x_shape = size(x)
-    x = reshape(x, (:, self.original_x_shape[end]))
+    if ndims(x) > 2
+      if self.numpymode
+        # np:(N, C, H, W), jl:(H, W, C, N)
+        x = reshape(permutedims(x, (2,1,3,4)), (:, self.original_x_shape[end]))
+      else
+        x = reshape(x, (:, self.original_x_shape[end]))
+      end
+    end
     self.x = x
 
     return self.W * x .+ self.b
