@@ -109,17 +109,17 @@ module DeepConvNet
   end
 
   function predict(self::DeepConvNet_st, x::Array, train_flg=false)
-    println("\n\nPredict")
+    #println("\n\nPredict")
     for layer in self.layers
-      println(match(r"\.(\w+)\.", string(typeof(layer)))[1])
+      #println(match(r"\.(\w+)\.", string(typeof(layer)))[1])
       #print("$(size(x))->")
-      print("$(sum(x))->")
+      #print("$(sum(x))->")
       if isa(layer, Main.Dropout.Dropout_st)
         x = layer.forward(x, train_flg)
       else
         x = layer.forward(x)
       end
-      println(sum(x))
+      #println(sum(x))
       #println(size(x))
     end
     return x
@@ -138,17 +138,17 @@ module DeepConvNet
     dout = 1
     dout = self.last_layer.backward(dout)
 
-    i=20
-    println("\nBackward")
+    #i=20
+    #println("\nBackward")
     for layer in reverse(self.layers)
       #if i==14
         #dout = permutedims(dout, (2, 1, 3, 4))
       #end
-      println(match(r"\.(\w+)\.", string(typeof(layer)))[1])
-      print("$(sum(dout))->")
+      #println(match(r"\.(\w+)\.", string(typeof(layer)))[1])
+      #print("$(sum(dout))->")
       dout = layer.backward(dout)
-      println(sum(dout))
-      i-=1
+      #println(sum(dout))
+      #i-=1
     end
 
     Windices = [0 2 5 7 10 12 15 18] .+ 1
@@ -234,9 +234,9 @@ network.layers[18].dropout_ratio
 
 # %% main
 # %% parameter inits
-iters_num = 3#10000
+iters_num = 10#10000
 batch_size = 100
-learning_rate = 0.1
+learning_rate = 0.001
 input_size = 784
 hidden_size = 50
 output_size = 10
@@ -251,7 +251,7 @@ adalist = List(zeros(iters_num), [], [])
 for i in 1:iters_num
   batch_mask = rand(1:train_size, batch_size);
   x_batch = x_train[:, :, :, batch_mask];
-  t_batch = t_train[batch_mask, :]';
+  t_batch = t_train[batch_mask, :];
 
   grads = network.gradient(x_batch, t_batch)
 
