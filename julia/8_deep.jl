@@ -234,7 +234,7 @@ network.layers[18].dropout_ratio
 
 # %% main
 # %% parameter inits
-iters_num = 10#10000
+iters_num = 10000
 batch_size = 100
 learning_rate = 0.001
 input_size = 784
@@ -255,20 +255,16 @@ for i in 1:iters_num
 
   grads = network.gradient(x_batch, t_batch)
 
-  network.params
   opt.update(network.params, grads)
-  network.params
 
-  y = network.predict(x_batch, true)
-  network.last_layer.forward(y, t_batch)
   loss_ = network.loss(x_batch, t_batch)
   #network.predict(x_batch[:, :, :, 1:1])
-  println("L=$(loss_)")
+  #println("L=$(loss_)")
   adalist.train_loss_list[i] = loss_
 
   if i % iter_per_epoch == 0
-    train_acc = network.accuracy(x_train, t_train, 2000)
-    test_acc = network.accuracy(x_test, t_test, 2000)
+    train_acc = network.accuracy(x_train, t_train, 1000)
+    test_acc = network.accuracy(x_test, t_test, 1000)
     push!(adalist.train_acc_list, train_acc)
     push!(adalist.test_acc_list, test_acc)
     println("iter: $i loss: $loss_ train acc: $train_acc test acc: $test_acc")
