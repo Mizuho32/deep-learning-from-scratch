@@ -17,8 +17,8 @@ module Relu
     return out
   end
   function backward(self::Relu_st, dout)
-    dx = copy(dout)
-    dx[self.mask] .= 0
+    dout[self.mask] .= 0
+    dx = dout
 
     return dx
   end
@@ -108,7 +108,11 @@ module Affine
     self.dW .= dout * self.x'
     self.db .= vec(sum(dout, dims=2))
 
-    return reshape(dx, self.original_x_shape)
+    if length(self.original_x_shape)>2 && self.numpymode
+      return permutedims(reshape(dx, self.original_x_shape), (2, 1, 3, 4))
+    else
+      return reshape(dx, self.original_x_shape)
+    end
   end
 end
 
@@ -128,12 +132,12 @@ module SoftmaxWithLoss
   function forward(self::SoftmaxWithLoss_st, x, t)
     self.t = t
     self.y = softmax(x, 1)
-    self.loss = cross_entropy_error(self.y, self.t)
+    self.loss = cross_entropy_error(self.y, self.t')
 
     return self.loss
   end
   function backward(self::SoftmaxWithLoss_st, dout)
-    dx = (self.y .- self.t) ./ size(dout, 2)
+    dx = (self.y .- self.t') ./ size(self.t, 1)
 
     return dx
   end
