@@ -109,16 +109,17 @@ module DeepConvNet
   end
 
   function predict(self::DeepConvNet_st, x::Array, train_flg=false)
+    println("\n\nPredict")
     for layer in self.layers
-      #println(typeof(layer))
+      println(match(r"\.(\w+)\.", string(typeof(layer)))[1])
       #print("$(size(x))->")
-      #print("$(sum(x))->")
+      print("$(sum(x))->")
       if isa(layer, Main.Dropout.Dropout_st)
         x = layer.forward(x, train_flg)
       else
         x = layer.forward(x)
       end
-      #println(sum(x))
+      println(sum(x))
       #println(size(x))
     end
     return x
@@ -137,8 +138,17 @@ module DeepConvNet
     dout = 1
     dout = self.last_layer.backward(dout)
 
+    i=20
+    println("\nBackward")
     for layer in reverse(self.layers)
+      #if i==14
+        #dout = permutedims(dout, (2, 1, 3, 4))
+      #end
+      println(match(r"\.(\w+)\.", string(typeof(layer)))[1])
+      print("$(sum(dout))->")
       dout = layer.backward(dout)
+      println(sum(dout))
+      i-=1
     end
 
     Windices = [0 2 5 7 10 12 15 18] .+ 1
@@ -173,6 +183,12 @@ function unpickle(filename)
     return r
 end
 
+struct List
+  train_loss_list::Array
+  train_acc_list::Array
+  test_acc_list::Array
+end
+
 # %% Inference
 network = DeepConvNet.new(numpymode=true);
 
@@ -188,6 +204,7 @@ size(network.layers[16].W)#.W[1:5, 1:5]
 train_size = size(x_train, 4)
 
 # %% test
+# forward check
 size(network.layers[16].W)
 n = 3
 argmax(t_test[n, :])-1
@@ -202,8 +219,67 @@ network.layers[18].dropout_ratio
 imshow(x_test[:, :, 1, n])
 test_acc = network.accuracy(x_test, t_test, 500)
 
-# %% main
+# backward check
 
-# %%
-weight = unpickle("./ch08/deep_convnet_params.pkl")
-size(weight["b7"])
+y=network.predict(x_train[:, :, :, 1:1])
+network.last_layer.y
+network.last_layer.t
+network.loss(x_train[:, :, :, 1:1], t_train[1:1, :])
+network.last_layer.backward(1)
+sum(network.last_layer.backward(1)[[4 6], 1])
+network.gradient(x_train[:, :, :, 1:1], t_train[1:1, :]);
+size(network.layers[14].mask)
+sum(network.layers[14].mask, dims=(1,2))
+network.layers[18].dropout_ratio
+
+# %% main
+# %% parameter inits
+iters_num = 3#10000
+batch_size = 100
+learning_rate = 0.1
+input_size = 784
+hidden_size = 50
+output_size = 10
+iter_per_epoch = Int(max(train_size/batch_size, 1))
+
+# %% AdaGrad
+using .AdaGrad
+opt = AdaGrad.new(learning_rate);
+network = DeepConvNet.new();
+adalist = List(zeros(iters_num), [], [])
+
+for i in 1:iters_num
+  batch_mask = rand(1:train_size, batch_size);
+  x_batch = x_train[:, :, :, batch_mask];
+  t_batch = t_train[batch_mask, :]';
+
+  grads = network.gradient(x_batch, t_batch)
+
+  network.params
+  opt.update(network.params, grads)
+  network.params
+
+  y = network.predict(x_batch, true)
+  network.last_layer.forward(y, t_batch)
+  loss_ = network.loss(x_batch, t_batch)
+  #network.predict(x_batch[:, :, :, 1:1])
+  println("L=$(loss_)")
+  adalist.train_loss_list[i] = loss_
+
+  if i % iter_per_epoch == 0
+    train_acc = network.accuracy(x_train, t_train, 2000)
+    test_acc = network.accuracy(x_test, t_test, 2000)
+    push!(adalist.train_acc_list, train_acc)
+    push!(adalist.test_acc_list, test_acc)
+    println("iter: $i loss: $loss_ train acc: $train_acc test acc: $test_acc")
+  end
+end
+
+# %% save
+using JLD2, FileIO
+save("./dataset/8_AdaGrad_Wb.jld2", "params", network.params, "train_acc_list", adalist.train_acc_list, "test_acc_list", adalist.test_acc_list, "train_loss_list", adalist.train_loss_list)
+
+# %% load weights
+params = load("./dataset/8_AdaGrad_Wb.jld2", "params")
+network = SimpleConvNet.new();
+SimpleConvNet.load_param(network, params);
