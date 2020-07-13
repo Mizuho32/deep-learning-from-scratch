@@ -188,6 +188,32 @@ struct List
   train_acc_list::Array
   test_acc_list::Array
 end
+function Train(opt, network, iters_num, batch_size, acc_batch_size, learning_rate, iter_per_epoch)
+  adalist = List(zeros(iters_num), [], [])
+
+  for i in 1:iters_num
+    batch_mask = rand(1:train_size, batch_size);
+    x_batch = x_train[:, :, :, batch_mask];
+    t_batch = t_train[batch_mask, :];
+
+    grads = network.gradient(x_batch, t_batch)
+
+    opt.update(network.params, grads)
+
+    loss_ = network.loss(x_batch, t_batch)
+    adalist.train_loss_list[i] = loss_
+    println(loss_)
+
+    if i % iter_per_epoch == 0
+      train_acc = network.accuracy(x_train, t_train, acc_batch_size)
+      test_acc = network.accuracy(x_test, t_test, acc_batch_size)
+      push!(adalist.train_acc_list, train_acc)
+      push!(adalist.test_acc_list, test_acc)
+      println("iter: $i loss: $loss_ train acc: $train_acc test acc: $test_acc")
+    end
+  end
+  return adalist
+end
 
 # %% Inference
 network = DeepConvNet.new(numpymode=true);
@@ -235,12 +261,18 @@ network.layers[18].dropout_ratio
 # %% main
 # %% parameter inits
 iters_num = 10000
+acc_batch_size = 500
 batch_size = 100
 learning_rate = 0.001
 input_size = 784
 hidden_size = 50
 output_size = 10
 iter_per_epoch = Int(max(train_size/batch_size, 1))
+
+# %% Train func
+opt = AdaGrad.new(learning_rate);
+network = DeepConvNet.new();
+adalist = Train(opt, network, iters_num, batch_size, acc_batch_size, learning_rate, iter_per_epoch)
 
 # %% AdaGrad
 using .AdaGrad
