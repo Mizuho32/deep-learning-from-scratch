@@ -202,7 +202,7 @@ function Train(opt, network, iters_num, batch_size, acc_batch_size, learning_rat
 
     loss_ = network.loss(x_batch, t_batch)
     adalist.train_loss_list[i] = loss_
-    println(loss_)
+    #println(loss_)
 
     if i % iter_per_epoch == 0
       train_acc = network.accuracy(x_train, t_train, acc_batch_size)
@@ -305,7 +305,7 @@ end
 
 # %% save
 using JLD2, FileIO
-save("./dataset/8_AdaGrad_Wb.jld2", "params", network.params, "train_acc_list", adalist.train_acc_list, "test_acc_list", adalist.test_acc_list, "train_loss_list", adalist.train_loss_list)
+save("./dataset/8_AdaGrad_Wb_$(chomp(read(`git rev-parse --short HEAD`, String))).jld2", "params", network.params, "train_acc_list", adalist.train_acc_list, "test_acc_list", adalist.test_acc_list, "train_loss_list", adalist.train_loss_list)
 
 # %% load weights
 params = load("./dataset/8_AdaGrad_Wb.jld2", "params")
